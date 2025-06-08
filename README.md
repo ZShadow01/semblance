@@ -16,7 +16,7 @@ A CLI tool to create projects with set templates. Add new templates by creating 
 To install using `go install`:
 
 ```bash
-go install github.com/ZShadow01/semblance@latest
+go install github.com/ZShadow01/semblance/cmd/sem
 ```
 
 _Or clone and build manually_
