@@ -1,0 +1,6 @@
+[
+    { "name": "nodejs", "exists": true },
+    { "name": "gibberish", "exists": false },
+    { "name": "radish", "exists": false },
+    { "name": "c", "exists": true }
+]

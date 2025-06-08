@@ -1,0 +1,9 @@
+{
+    "name": "{{.Name}}",
+    "version": "0.0.1",
+    "description": "{{.Description}}",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js"
+    }
+}
