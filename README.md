@@ -53,3 +53,4 @@ Currently available project templates:
 
 -   `c`
 -   `nodejs`
+-   `discordjs`
