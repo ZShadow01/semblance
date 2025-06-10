@@ -18,7 +18,7 @@ type TemplateTest struct {
 	Exists 	bool 	`json:"exists"`
 }
 
-func TestCopyTemplateContents(t *testing.T) {
+func TestGenerateByDefaultTemplate(t *testing.T) {
 	data, err := os.ReadFile("testdata/sample-templates.json")
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +39,7 @@ func TestCopyTemplateContents(t *testing.T) {
 			Description: "Test",
 		}
 
-		err := CopyTemplateContents(project, sample.Name)
+		err := GenerateByDefaultTemplate(project, sample.Name)
 		if (sample.Exists && err != nil) || (!sample.Exists && err == nil) {
 			t.Fatal(err)
 		}

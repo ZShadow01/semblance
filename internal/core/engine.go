@@ -2,7 +2,6 @@ package core
 
 import (
 	"embed"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -26,7 +25,7 @@ var templates embed.FS
 
 func CreateProject(project Project, template string) error {
 	// Copy all contents from the template
-	err := CopyTemplateContents(project, template)
+	err := GenerateByDefaultTemplate(project, template)
 	if err != nil {
 		return err
 	}
@@ -41,62 +40,62 @@ func CreateProject(project Project, template string) error {
 }
 
 
-func CopyTemplateContents(project Project, template string) error {
-	// Virtual path to templates/template
-	templatePath := path.Join("templates", template)
-
-	// Check whether templatePath exists
-	info, err := fs.Stat(templates, templatePath)
+func GenerateByDefaultTemplate(project Project, template string) error {
+	templatePath, err := isValidDefaultTemplate(template)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("the template '%s' does not exist: %w", template, err)
-		}
-		return fmt.Errorf("unexpected error occurred when reading '%s': %v", templatePath, err)
+		return err
 	}
 
-	// Check whether templatePath is a directory
-	if !info.IsDir() {
-		return errors.New("unexpectedly read a file instead of a directory " + templatePath)
-	}
-
-	// Walk through all of the template directory's contents
-	// Real paths use filepath, virtual path use path
-	return fs.WalkDir(templates, templatePath, func(virtualPath string, d fs.DirEntry, _ error) error {
-		relPath, err := filepath.Rel(templatePath, virtualPath)
+	return fs.WalkDir(templates, templatePath, func(currentPath string, entry fs.DirEntry, _ error) error {
+		rel, err := filepath.Rel(templatePath, currentPath)
 		if err != nil {
-			return err
+			return fmt.Errorf("could not compute relative path: %v", err)
 		}
-		targetPath := filepath.Join(project.Path, relPath)
 
-		// All files starting with _ are "hidden" files
-		fileName := filepath.Base(targetPath)
-		if strings.HasPrefix(fileName, "_") {
-			if fileName == "_keep" {
+		// Rename target path if filename starts with '_'
+		target := filepath.Join(project.Path, rel)
+
+		filename := filepath.Base(target)
+		if strings.HasPrefix(filename, "_") {
+			// Don't add files that are called '_keep'
+			if filename == "_keep" {
 				return nil
 			}
 
-			targetPath = path.Join(filepath.Dir(targetPath), strings.Replace(fileName, "_", ".", 1))
+			filename = strings.Replace(filename, "_", ".", 1)
+			target = filepath.Join(filepath.Dir(target), filename)
 		}
 
-		if d.IsDir() {
-			err := filesystem.CreateDirectory(targetPath)
-			if err != nil {
-				return err
-			}
-		} else {
-			// Render the template
-			err := RenderTemplate(templates, virtualPath, targetPath, project)
-			if err != nil {
-				return err
-			}
+		// Add directory or file
+		if entry.IsDir() {
+			return filesystem.CreateDirectory(target)
 		}
 
-		return nil
+		return RenderTemplate(templates, currentPath, target, project)
 	})
 }
 
 
-func RenderTemplate(fileSystem fs.FS, virtualSrc, destination string, data any) error {
+func isValidDefaultTemplate(template string) (string, error) {
+	templatePath := path.Join("templates", template)
+
+	info, err := fs.Stat(templates, templatePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("the template '%s' does not exist", template)
+		}
+		return "", fmt.Errorf("unexpected error occurred trying to read the template '%s': %v", template, err)
+	}
+
+	if !info.IsDir() {
+		return "", fmt.Errorf("file type of '%s' is not a directory", template)
+	}
+
+	return templatePath, nil
+}
+
+
+func RenderTemplate(fileSystem fs.FS, source, destination string, data any) error {
 	// Create new file
 	file, err := filesystem.CreateFile(destination)
 	if err != nil {
@@ -105,15 +104,15 @@ func RenderTemplate(fileSystem fs.FS, virtualSrc, destination string, data any) 
 	defer file.Close()
 
 	// Setup template
-	tmpl, err := template.ParseFS(fileSystem, virtualSrc)
+	tmpl, err := template.ParseFS(fileSystem, source)
 	if err != nil {
-		return fmt.Errorf("failed to setup template file %s: %w", virtualSrc, err)
+		return fmt.Errorf("failed to setup template file %s: %w", source, err)
 	}
 
 	// Insert additional information from the project object into the template file
 	err = tmpl.Execute(file, data)
 	if err != nil {
-		return fmt.Errorf("failed to execute template modifier on %s: %w", virtualSrc, err)
+		return fmt.Errorf("failed to execute template modifier on %s: %w", source, err)
 	}
 
 	return nil
