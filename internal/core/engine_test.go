@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -13,19 +14,17 @@ import (
 	"text/template"
 )
 
-type TemplateTest struct {
+type TestTemplate struct {
 	Name 	string 	`json:"name"`
 	Exists 	bool 	`json:"exists"`
 }
 
-func TestGenerateByDefaultTemplate(t *testing.T) {
-	data, err := os.ReadFile("testdata/sample-templates.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+//go:embed testdata/sample-templates.json
+var SampleTemplatesData []byte
 
-	var sampleTemplates []TemplateTest
-	err = json.Unmarshal(data, &sampleTemplates)
+func TestGenerateByDefaultTemplate(t *testing.T) {
+	var sampleTemplates []TestTemplate
+	err := json.Unmarshal(SampleTemplatesData, &sampleTemplates)
 	if err != nil {
 		t.Fatal (err)
 	}
@@ -103,6 +102,24 @@ func TestGenerateByDefaultTemplate(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatal(err)
+		}
+	}
+}
+
+
+func TestIsValidDefaultTemplate(t *testing.T) {
+	var sampleTemplates []TestTemplate
+	err := json.Unmarshal(SampleTemplatesData, &sampleTemplates)
+	if err != nil {
+		t.Fatal (err)
+	}
+	
+	for _, sample := range sampleTemplates {
+		_, err := isValidDefaultTemplate(sample.Name)
+		if (err != nil) && sample.Exists {
+			t.Fatalf("valid template flagged as invalid template '%s'\n", sample.Name)
+		} else if (err == nil) && !sample.Exists {
+			t.Fatalf("invalid template flagged as valid template '%s'\n", sample.Name)
 		}
 	}
 }
