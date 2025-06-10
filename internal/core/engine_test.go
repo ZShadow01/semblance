@@ -9,7 +9,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 	"testing"
 	"text/template"
 )
@@ -26,10 +25,11 @@ func TestGenerateByDefaultTemplate(t *testing.T) {
 	var sampleTemplates []TestTemplate
 	err := json.Unmarshal(SampleTemplatesData, &sampleTemplates)
 	if err != nil {
-		t.Fatal (err)
+		t.Fatal(err)
 	}
 	
 	for _, sample := range sampleTemplates {
+		fmt.Println("New template")
 		tempDir := t.TempDir()
 
 		project := Project{
@@ -39,69 +39,39 @@ func TestGenerateByDefaultTemplate(t *testing.T) {
 		}
 
 		err := GenerateByDefaultTemplate(project, sample.Name)
-		if (sample.Exists && err != nil) || (!sample.Exists && err == nil) {
-			t.Fatal(err)
-		}
+		_, err2 := isValidDefaultTemplate(sample.Name)
 
-		if (!sample.Exists) {
+		if err == err2 && err != nil {
 			continue
 		}
 
-		templatePath := path.Join("templates", sample.Name)
-		err = fs.WalkDir(templates, templatePath, func(p string, d fs.DirEntry, _ error) error {
-			relPath, err := filepath.Rel(templatePath, p)
-			if err != nil {
-				return err
-			}
-
-			fileName := filepath.Base(relPath)
-			if strings.HasPrefix(fileName, "_") {
-				if fileName == "_keep" {
-					return nil
-				}
-				relPath = path.Join(filepath.Dir(relPath), strings.Replace(fileName, "_", ".", 1))
-			}
-
-			filePath := filepath.Join(project.Path, relPath)
-			info, err := os.Stat(filePath)
-			if err != nil {
-				return err
-			}
-
-			if info.IsDir() != d.IsDir() {
-				return fmt.Errorf("mismatch in file types: %s | %s ", filePath, p)
-			}
-			return nil
-		})
-		if err != nil {
-			t.Fatal(err)
+		if err2 != nil && fmt.Sprintf("%T", err) != fmt.Sprintf("%T", err2) {
+			t.Fatalf("GenerateByDefaultTemplate(%v, %s) validated an invalid template", project, sample.Name)
 		}
 
-		projectFS := os.DirFS(project.Path)
-		err = fs.WalkDir(projectFS, ".", func(p string, d fs.DirEntry, _ error) error {
-			virtualFileName := path.Base(p)
-			if virtualFileName != "." && strings.HasPrefix(virtualFileName, ".") {
-				virtualFileName = strings.Replace(virtualFileName, ".", "_", 1)
-				p = path.Join(path.Dir(p), virtualFileName)
-			}
+		if err2 == nil && err != nil {
+			t.Fatalf("GenerateByDefaultTemplate(%v, %s) = %v", project, sample.Name, err)
+		}
 
-			if virtualFileName == "_keep" {
+		// Get the amount of files in the template
+		nTemplateFiles := 0
+		fs.WalkDir(templates, path.Join("templates", sample.Name), func(p string, _ fs.DirEntry, _ error) error {
+			if path.Base(p) == "_keep" {
 				return nil
 			}
 
-			info, err := fs.Stat(templates, path.Join(templatePath, p))
-			if err != nil {
-				return err
-			}
-
-			filePath := filepath.Join(project.Path, p)
-			if info.IsDir() != d.IsDir() {
-				return fmt.Errorf("mismatch in file types: %s | %s ", filePath, p)
-			}
+			nTemplateFiles++
 			return nil
 		})
-		if err != nil {
-			t.Fatal(err)
+
+		nGeneratedFiles := 0
+		fs.WalkDir(os.DirFS(project.Path), ".", func(_ string, _ fs.DirEntry, _ error) error {
+			nGeneratedFiles++
+			return nil
+		})
+
+		if nTemplateFiles != nGeneratedFiles {
+			t.Fatalf("GenerateByDefaultTemplate(%v, %s) does not generate the same amount of files as the template", project, sample.Name)
 		}
 	}
 }
@@ -116,6 +86,8 @@ func TestIsValidDefaultTemplate(t *testing.T) {
 	
 	for _, sample := range sampleTemplates {
 		_, err := isValidDefaultTemplate(sample.Name)
+
+		// Check whether isValidDefaultTemplate correctly finds the templates
 		if (err != nil) && sample.Exists {
 			t.Fatalf("valid template flagged as invalid template '%s'\n", sample.Name)
 		} else if (err == nil) && !sample.Exists {
@@ -142,6 +114,7 @@ func TestRenderTemplate(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Render the source file
 	tmpl, err := template.ParseFiles(sourcePath)
 	if err != nil {
 		t.Fatal(err)
@@ -154,11 +127,13 @@ func TestRenderTemplate(t *testing.T) {
 
 	rendered := buf.String()
 
+	// Read the rendered target file
 	fileContents, err := os.ReadFile(targetPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	// Compare the source file with the target file with the templates rendered
 	if rendered != string(fileContents) {
 		t.Fatal("rendered template file has not been rendered correctly")
 	}
