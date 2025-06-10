@@ -1,0 +1,16 @@
+{
+    "name": "{{.Name}}",
+    "version": "0.0.1",
+    "description": "{{.Description}}",
+    "main": "src/index.js",
+    "scripts": {
+        "start": "node src/index.js",
+        "deploy": "node deploy-commands.js"
+    },
+    "license": "ISC",
+    "type": "commonjs",
+    "dependencies": {
+        "discord.js": "^14.19.3",
+        "dotenv": "^16.5.0"
+    }
+}

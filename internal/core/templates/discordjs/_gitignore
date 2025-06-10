@@ -1,0 +1,5 @@
+# Configuration files
+*.env*
+
+# Libraries and frameworks
+node_modules
